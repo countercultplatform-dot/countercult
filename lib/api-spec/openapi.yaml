@@ -1,0 +1,4522 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication and signup operations
+  - name: entries
+    description: Culture explorer entries (artists, spaces, artifacts)
+  - name: admin
+    description: Admin curation endpoints (require x-admin-password header)
+  - name: residency
+    description: Artist-to-artist housing offers, creative spaces, and opportunities
+  - name: Storage
+    description: Object storage upload and serving endpoints.
+  - name: fund
+    description: Countercult Fund partner intake
+  - name: pinterest
+    description: Direct Pinterest OAuth and approved Pin publishing for the private Studio OS
+  - name: bookingGuide
+    description: Passphrase-protected GetYourGuide guest bonus
+  - name: patronPost
+    description: Patron Post membership progress
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /patron-post/progress:
+    get:
+      operationId: getPatronPostProgress
+      tags: [patronPost]
+      summary: Read the current active Patron Post membership count
+      responses:
+        "200":
+          description: Current active memberships and the public goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostProgress"
+
+  /patron-post/questions:
+    post:
+      operationId: submitPatronPostQuestion
+      tags: [patronPost]
+      summary: Submit an anonymous question for a future issue
+      description: No name, email, or IP is attached to the saved question. Questions are reviewed and may be answered in a future Patron Post issue.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatronPostQuestionInput"
+      responses:
+        "202":
+          description: The question was received for editorial review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionSubmission"
+        "400":
+          description: The question is missing or outside the allowed length
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionError"
+        "429":
+          description: Too many questions were submitted
+        "503":
+          description: The question could not be saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionError"
+
+  /studio/patron-post/questions:
+    get:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: getStudioPatronPostQuestions
+      tags: [patronPost]
+      summary: List anonymous Patron Post questions for review
+      responses:
+        "200":
+          description: Questions ordered by submission time
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionsResponse"
+        "401": { description: Studio access required }
+        "503":
+          description: Questions could not be loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionError"
+
+  /studio/patron-post/contributions:
+    get:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: getStudioPatronPostContributions
+      tags: [patronPost]
+      summary: List live Patron Post contributions for Studio OS
+      responses:
+        "200":
+          description: Contribution totals and recent records without donor details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudioPatronPostContributionsResponse"
+        "401": { description: Studio access required }
+        "503":
+          description: Contribution records could not be loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  "/studio/patron-post/questions/{id}":
+    patch:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: updateStudioPatronPostQuestionStatus
+      tags: [patronPost]
+      summary: Update the review status of an anonymous question
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatronPostQuestionStatusUpdate"
+      responses:
+        "200":
+          description: Updated anonymous question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionRecord"
+        "400":
+          description: Invalid question ID or review status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionError"
+        "401": { description: Studio access required }
+        "404":
+          description: Question not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionError"
+        "503":
+          description: Question status could not be updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionError"
+    delete:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: deleteStudioPatronPostQuestion
+      tags: [patronPost]
+      summary: Delete an anonymous Patron Post question
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "204": { description: Question deleted }
+        "400":
+          description: Invalid question ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionError"
+        "401": { description: Studio access required }
+        "404":
+          description: Question not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionError"
+        "503":
+          description: Question could not be deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatronPostQuestionError"
+
+  /auth/validate-location:
+    post:
+      operationId: validateSignupLocation
+      tags: [auth]
+      summary: Verify a city and country before member signup continues
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupLocationInput"
+      responses:
+        "200":
+          description: The city and country resolve to a mappable place
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignupLocationResult"
+        "400":
+          description: The city and country could not be verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignupLocationError"
+
+  /auth/register:
+    post:
+      operationId: registerAccount
+      tags: [auth]
+      summary: Create an account and submit a Countercult member or partner application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountRegistrationInput"
+      responses:
+        "201":
+          description: Account and application created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountRegistrationResult"
+        "400":
+          description: The registration details are invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: An account with this email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getCurrentMemberSession
+      tags: [auth]
+      summary: Return the current member session and saved profile preferences
+      responses:
+        "200":
+          description: The signed-in account and linked profiles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberSessionResponse"
+        "401":
+          description: The session is missing or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/preferences:
+    patch:
+      operationId: updateMemberPreferences
+      tags: [auth]
+      summary: Save optional newsletter and rural-discovery preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberPreferencesInput"
+      responses:
+        "200":
+          description: The saved preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberPreferencesResponse"
+        "400":
+          description: The preference values are invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: The session is missing or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The account or its member profile could not be found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /exchange-digest/unsubscribe:
+    get:
+      operationId: confirmExchangeDigestUnsubscribe
+      tags: [auth]
+      summary: Show an explicit confirmation before stopping the weekly Exchange digest
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string, pattern: "^[a-f0-9]{64}$" }
+      responses:
+        "200":
+          description: Confirmation page; opening the link does not unsubscribe automatically
+          content:
+            text/html:
+              schema: { type: string }
+        "400":
+          description: The unsubscribe link is invalid
+          content:
+            text/html:
+              schema: { type: string }
+        "410":
+          description: The unsubscribe link has already been used
+          content:
+            text/html:
+              schema: { type: string }
+    post:
+      operationId: unsubscribeFromExchangeDigest
+      tags: [auth]
+      summary: Stop weekly Exchange digest emails using the signed unsubscribe token
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string, pattern: "^[a-f0-9]{64}$" }
+      responses:
+        "200":
+          description: The weekly Exchange digest is stopped
+          content:
+            text/html:
+              schema: { type: string }
+        "400":
+          description: The unsubscribe link is invalid
+          content:
+            text/html:
+              schema: { type: string }
+
+  /auth/space-claims/inspect:
+    post:
+      operationId: inspectSpaceClaimInvitation
+      tags: [auth]
+      summary: Validate a one-time invitation to claim an existing space listing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpaceClaimTokenInput"
+      responses:
+        "200":
+          description: Invitation details and account setup requirements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpaceClaimInvitationDetails"
+        "400":
+          description: Invitation is invalid, expired, used, or no longer claimable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/space-claims/accept:
+    post:
+      operationId: acceptSpaceClaimInvitation
+      tags: [auth]
+      summary: Accept a verified space claim invitation and link the existing listing to an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpaceClaimAcceptInput"
+      responses:
+        "200":
+          description: Existing listing claimed and a password-authenticated session issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpaceClaimAcceptResult"
+        "400":
+          description: Invalid invitation or account details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: The password did not authenticate the existing account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The listing is already claimed or the email belongs to an account that must sign in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /entries/pins:
+    get:
+      operationId: listEntryPins
+      tags: [entries]
+      summary: Lightweight public or approved-network pin list
+      description: Anonymous callers receive public non-artist pins and limited previews for public artist pins, including older public profiles without a recorded consent entry. Artist preview pins include display name, city and country, tags, and approximate coordinates; profile photos are included only when public profile consent is recorded. Full artist details, contact information, and portfolio media remain available only to approved network members.
+      responses:
+        "200":
+          description: Pin list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EntryPin"
+
+  /entries:
+    get:
+      operationId: listEntries
+      tags: [entries]
+      summary: List entries (for the side panel)
+      description: Anonymous callers receive public non-artist entries. Approved network members also receive public and network-only artist entries.
+      responses:
+        "200":
+          description: Entry list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EntrySummary"
+    post:
+      operationId: createEntry
+      tags: [entries]
+      summary: Submit a new entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewEntry"
+      responses:
+        "201":
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /entries/space-suggestions:
+    post:
+      operationId: createSpaceSuggestion
+      tags: [entries]
+      summary: Suggest a public cultural space without claiming it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpaceSuggestionInput"
+      responses:
+        "201":
+          description: Space published as community-submitted and unclaimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpaceSuggestionCreated"
+        "400":
+          description: Invalid or unmappable suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A likely duplicate already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /entries/voices:
+    get:
+      operationId: listPublicVoices
+      tags: [entries]
+      summary: List approved member voices for the public homepage
+      description: Returns join answers only from published, approved, visible, non-deleted entries. Artists appear only when separately selected for public voice cards.
+      responses:
+        "200":
+          description: Public member voices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicVoice"
+
+  /entries/site-cards:
+    get:
+      operationId: listPublicArtistCards
+      tags: [entries]
+      summary: List artists who consented to public profile cards
+      description: Returns minimal teaser cards for all approved, published artists who chose public profile visibility. Full artist profiles and portfolio media remain member-only.
+      responses:
+        "200":
+          description: Public artist card data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicArtistCard"
+
+  /entries/{id}/discover-links:
+    get:
+      operationId: discoverEntryLinks
+      tags: [entries]
+      summary: Auto-discover social/web links for an entry (cached in DB after first call)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Discovered links
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExternalLink"
+        "404":
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /entries/{id}/claim/request:
+    post:
+      operationId: requestClaimCode
+      tags: [entries]
+      summary: Send a one-time code to the artist's email to verify ownership
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimRequestBody"
+      responses:
+        "200":
+          description: Code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /entries/{id}/claim/verify:
+    post:
+      operationId: verifyClaimCode
+      tags: [entries]
+      summary: Verify the one-time code and open a claim session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimVerifyBody"
+      responses:
+        "200":
+          description: Verified — claim session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaimSession"
+        "400":
+          description: Wrong or expired code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /entries/{id}/claim:
+    post:
+      operationId: claimEntry
+      tags: [entries]
+      summary: Save pitchbook profile (requires claim session token in Authorization header)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimEntryBody"
+      responses:
+        "200":
+          description: Claimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "401":
+          description: Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /entries/{id}:
+    get:
+      operationId: getEntry
+      tags: [entries]
+      summary: Full entry details for public places or approved network members
+      description: Artists require an approved network session. Public site-card exceptions reveal only card data, not the full profile.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicEntry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /adverts:
+    get:
+      operationId: listAdverts
+      tags: [adverts]
+      summary: List adverts
+      responses:
+        "200":
+          description: Active adverts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Advert"
+    post:
+      operationId: createAdvert
+      tags: [adverts]
+      summary: Publish a free advert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdvertInput"
+      responses:
+        "201":
+          description: Advert published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdvertCreated"
+        "400":
+          description: Invalid advert details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Advert could not be published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /residency:
+    get:
+      operationId: listResidencyOffers
+      tags: [residency]
+      summary: List active housing, space, and opportunity offers
+      responses:
+        "200":
+          description: List of offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ResidencyOffer"
+    post:
+      operationId: createResidencyOffer
+      tags: [residency]
+      summary: Post a housing, space, or opportunity offer (requires claim session token)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewResidencyOffer"
+      responses:
+        "201":
+          description: Offer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResidencyOffer"
+        "401":
+          description: No valid session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /residency/homepage-picks:
+    get:
+      operationId: listHomepageExchangePicks
+      tags: [residency]
+      summary: List recent public Exchange homepage offers
+      responses:
+        "200":
+          description: Two newest active public-safe offers followed by an optional curator pick
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomepageExchangePicks"
+
+  /admin/residency/homepage-picks:
+    patch:
+      operationId: updateHomepageExchangePicks
+      tags: [admin, residency]
+      summary: Select one public-safe Exchange offer for the homepage's third card
+      parameters:
+        - name: x-admin-password
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomepageExchangePicksOrderInput"
+      responses:
+        "200":
+          description: Saved curator order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomepageExchangePicksOrder"
+        "400":
+          description: One or more offers are not eligible for public featuring
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /residency/{id}:
+    patch:
+      operationId: updateResidencyOffer
+      tags: [residency]
+      summary: Edit your housing, space, or opportunity offer (requires claim session)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateResidencyOffer"
+      responses:
+        "200":
+          description: Updated offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResidencyOffer"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteResidencyOffer
+      tags: [residency]
+      summary: Delete your offer (requires claim session)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/residency/matching:
+    get:
+      operationId: getResidencyMatchingWorkspace
+      tags: [residency]
+      summary: Load the private Exchange Residency matching workspace
+      parameters:
+        - name: x-admin-password
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Private applicants and shortlist entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResidencyMatchingWorkspace"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/residency/{applicantId}/shortlist:
+    post:
+      operationId: createResidencyShortlist
+      tags: [residency]
+      summary: Add a private candidate to an Exchange Residency applicant shortlist
+      parameters:
+        - name: applicantId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: x-admin-password
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResidencyShortlistInput"
+      responses:
+        "201":
+          description: Shortlist entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResidencyShortlist"
+        "400":
+          description: Invalid applicant or partner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Shortlist limit or duplicate candidate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/residency/shortlist/{id}:
+    patch:
+      operationId: updateResidencyShortlist
+      tags: [residency]
+      summary: Update private matching notes or mark a pair as matched
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: x-admin-password
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResidencyShortlistUpdate"
+      responses:
+        "200":
+          description: Updated shortlist entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResidencyShortlist"
+        "409":
+          description: One of the applicants is already matched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteResidencyShortlist
+      tags: [residency]
+      summary: Remove a candidate from a private shortlist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: x-admin-password
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Shortlist entry removed
+
+  /admin/residency/shortlist/{id}/contact:
+    post:
+      operationId: recordResidencyShortlistContact
+      tags: [residency]
+      summary: Explicitly record and retrieve a consented applicant contact method
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: x-admin-password
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResidencyContactInput"
+      responses:
+        "200":
+          description: Contact recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResidencyContactResponse"
+        "409":
+          description: No contact method recorded for the selected person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai-search:
+    post:
+      operationId: aiSearch
+      tags: [entries]
+      summary: AI-powered natural language search over entries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+              required: [query]
+      responses:
+        "200":
+          description: Matching entries with explanation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  explanation:
+                    type: string
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/EntrySummary"
+                required: [explanation, results]
+
+  /admin/auth/check:
+    get:
+      operationId: checkAdminAuth
+      tags: [admin]
+      summary: Verify admin password header
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/entries/maybe-later:
+    get:
+      operationId: listMaybeLaterEntries
+      tags: [admin]
+      summary: List submissions deferred for later review
+      security:
+        - adminPassword: []
+      responses:
+        "200":
+          description: Deferred submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminSubmission"
+        "401":
+          description: Admin password is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/entries/{id}/mark-maybe-later:
+    post:
+      operationId: markEntryMaybeLater
+      tags: [admin]
+      summary: Defer a submission from the active review queue
+      security:
+        - adminPassword: []
+      parameters:
+        - $ref: "#/components/parameters/EntryId"
+      responses:
+        "200":
+          description: Submission moved to Maybe Later
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSubmissionStatusResult"
+        "400":
+          description: Invalid entry ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Admin password is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Submission not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Submission is not in the active review queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/entries/{id}/return-to-review:
+    post:
+      operationId: returnMaybeLaterEntryToReview
+      tags: [admin]
+      summary: Return a deferred submission to active review
+      security:
+        - adminPassword: []
+      parameters:
+        - $ref: "#/components/parameters/EntryId"
+      responses:
+        "200":
+          description: Submission returned to Review Submissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSubmissionStatusResult"
+        "400":
+          description: Invalid entry ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Admin password is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Submission not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Submission is not in Maybe Later
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/entries/curation-import:
+    post:
+      operationId: publishCuratedPins
+      tags: [admin]
+      summary: Publish a batch of publicly sourced curated pins
+      security:
+        - adminPassword: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CuratedPinBatchInput"
+      responses:
+        "201":
+          description: Pins created or matched to existing listings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CuratedPinBatchResult"
+        "400":
+          description: Invalid pin batch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Admin password is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/entries/{id}/claim-invitations:
+    post:
+      operationId: sendSpaceClaimInvitation
+      tags: [admin]
+      summary: Send a claim invitation after an administrator has verified the space representative
+      security:
+        - adminPassword: []
+      parameters:
+        - $ref: "#/components/parameters/EntryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpaceClaimInvitationInput"
+      responses:
+        "201":
+          description: Invitation email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpaceClaimInvitationResult"
+        "400":
+          description: Invalid address or verification confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Admin password is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The public space listing does not exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Listing is not an eligible unclaimed public space
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Invitation email could not be delivered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/artists:
+    get:
+      operationId: listAdminArtists
+      tags: [admin]
+      summary: List artists (admin view, all statuses)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected, all]
+            default: all
+      responses:
+        "200":
+          description: Artist list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Artist"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createAdminArtist
+      tags: [admin]
+      summary: Create a new artist (defaults to pending, is_claimed=false)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewArtist"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Artist"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/artists/{id}/publish:
+    post:
+      operationId: publishAdminArtist
+      tags: [admin]
+      summary: Publish approved artist as a map entry (obfuscates location by ~500 m)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          description: Artist has no pin location set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/artists/{id}:
+    patch:
+      operationId: updateAdminArtist
+      tags: [admin]
+      summary: Update artist status or fields (e.g. approve / reject)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtistUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Artist"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteAdminArtist
+      tags: [admin]
+      summary: Delete an artist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts:
+    get:
+      operationId: listPosts
+      tags: [posts]
+      summary: List published posts
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Post list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PostSummary"
+    post:
+      operationId: createPost
+      tags: [posts]
+      summary: Create a post (editorial requires x-admin-password; member requires Authorization token)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewPost"
+      responses:
+        "201":
+          description: Post created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostSummary"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts/{id}:
+    get:
+      operationId: getPost
+      tags: [posts]
+      summary: Get a single post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostSummary"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePost
+      tags: [posts]
+      summary: Delete a post (admin or author)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      description: |
+        Returns a presigned GCS URL for direct upload. The client sends JSON
+        metadata here, then uploads the file directly to the returned URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUrlRequest'
+      responses:
+        '200':
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to generate upload URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [Storage]
+      operationId: getPublicObject
+      summary: Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content streamed with correct Content-Type.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content streamed with correct Content-Type.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Object not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /fund/partner-brief:
+    post:
+      operationId: submitFundPartnerBrief
+      tags: [fund]
+      summary: Submit a business-managed Countercult Fund partner brief
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FundPartnerBriefInput"
+      responses:
+        "201":
+          description: Brief received for review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /applications/guadalajara-residency:
+    post:
+      operationId: submitGuadalajaraResidencyApplication
+      tags: [applications]
+      summary: Submit an application for Countercult's Guadalajara artist residency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuadalajaraResidencyApplicationInput"
+      responses:
+        "201":
+          description: Application emailed to Countercult
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many applications submitted from this address
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Application email could not be delivered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /applications/art-houses:
+    post:
+      operationId: submitArtHouseApplication
+      tags: [applications]
+      summary: Submit a Countercult Art Houses residency application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtHouseApplicationInput"
+      responses:
+        "201":
+          description: Application saved for review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtHouseApplicationSubmission"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many applications submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Application could not be saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/art-house-applications:
+    get:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: getStudioArtHouseApplications
+      tags: [applications]
+      summary: List residency applications for Studio OS review
+      responses:
+        "200":
+          description: Applications ordered by submission time
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtHouseApplicationsResponse"
+        "401": { description: Studio access required }
+        "503":
+          description: Applications could not be loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  "/studio/art-house-applications/{id}":
+    patch:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: updateStudioArtHouseApplicationStatus
+      tags: [applications]
+      summary: Update the review status of a residency application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtHouseApplicationStatusUpdate"
+      responses:
+        "200":
+          description: Updated residency application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtHouseApplicationRecord"
+        "400":
+          description: Invalid application ID or review status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401": { description: Studio access required }
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Application status could not be updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /entries/{id}/enquiries:
+    post:
+      operationId: createSpaceEnquiry
+      tags: [entries]
+      summary: Send a structured enquiry to an eligible commercial space
+      parameters: [{ $ref: "#/components/parameters/EntryId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpaceEnquiryInput" }
+      responses:
+        "201": { description: Sent }
+  /entries/{id}/business-tools:
+    get:
+      security: [{ bearerAuth: [] }]
+      operationId: getSpaceBusinessTools
+      tags: [entries]
+      summary: Private owner analytics and enquiries for an active commercial space
+      parameters: [{ $ref: "#/components/parameters/EntryId" }]
+      responses:
+        "200":
+          description: Private business tools
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpaceBusinessTools" }
+        "401": { description: Authentication required }
+        "403": { description: Ownership and an active commercial plan required }
+  /admin/spaces:
+    get:
+      security: [{ adminPassword: [] }]
+      operationId: listAdminSpaces
+      tags: [admin]
+      summary: List spaces and their classification and subscription state
+      responses:
+        "200":
+          description: Spaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminSpace" }
+  /admin/spaces/{id}/classification:
+    patch:
+      security: [{ adminPassword: [] }]
+      operationId: reviewSpaceClassification
+      tags: [admin]
+      summary: Set an administrator classification override
+      parameters:
+        - $ref: "#/components/parameters/EntryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClassificationReviewInput" }
+      responses:
+        "200":
+          description: Updated space
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Entry" }
+
+  /pinterest/oauth/start:
+    post:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: startPinterestOAuth
+      tags: [pinterest]
+      summary: Start the direct Pinterest OAuth flow
+      responses:
+        "200":
+          description: Pinterest authorization URL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PinterestOAuthStart" }
+        "401": { description: Studio access key required }
+        "503": { description: Pinterest credentials are not configured }
+
+  /studio/session:
+    get:
+      operationId: getStudioSession
+      tags: [studio]
+      summary: Check whether the current browser has an active Studio session
+      responses:
+        "200":
+          description: Session status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudioSessionStatus" }
+    post:
+      operationId: createStudioSession
+      tags: [studio]
+      summary: Create a Studio session using the configured Studio password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StudioSessionInput" }
+      responses:
+        "200":
+          description: Session created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudioSessionStatus" }
+        "400": { description: Invalid request }
+        "401": { description: Studio password was not accepted }
+        "429": { description: Too many sign-in attempts }
+        "503": { description: Studio sign-in is not configured }
+    delete:
+      operationId: deleteStudioSession
+      tags: [studio]
+      summary: Clear the current Studio session
+      responses:
+        "204": { description: Session cleared }
+
+  /booking-guide/session:
+    post:
+      operationId: createBookingGuideSession
+      tags: [bookingGuide]
+      summary: Check the guest passphrase and create a short-lived browser session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookingGuidePassphraseInput" }
+      responses:
+        "200":
+          description: Guest session created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingGuideAccessStatus" }
+        "400": { description: Invalid passphrase input }
+        "401": { description: Passphrase was not accepted }
+        "429": { description: Too many attempts }
+        "503": { description: Guest access is not configured }
+    delete:
+      operationId: deleteBookingGuideSession
+      tags: [bookingGuide]
+      summary: Clear the current guest session
+      responses:
+        "204": { description: Session cleared }
+
+  /booking-guide/content:
+    get:
+      operationId: getBookingGuideContent
+      tags: [bookingGuide]
+      summary: Get the private route and guest tips after passphrase validation
+      responses:
+        "200":
+          description: Private booking bonus content
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingGuideContent" }
+        "401": { description: Guest access required }
+
+  /studio/artworks/public:
+    get:
+      operationId: listPublicStudioArtworks
+      tags: [studio]
+      summary: List published Studio artwork records
+      responses:
+        "200":
+          description: Public Studio artwork records
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StudioPublicArtwork" }
+
+  /studio/artworks/{id}/photos/{photoIndex}:
+    get:
+      operationId: getPublicStudioArtworkPhoto
+      tags: [studio]
+      summary: Serve a photo belonging to a published artwork
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: photoIndex
+          in: path
+          required: true
+          schema: { type: integer, minimum: 0, maximum: 11 }
+      responses:
+        "200":
+          description: Public artwork image
+          content:
+            image/*:
+              schema: { type: string, format: binary }
+        "404": { description: Artwork photo not found }
+
+  /studio/artworks:
+    post:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: createStudioArtwork
+      tags: [studio]
+      summary: Save a complete artwork and start automatic Pinterest publishing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StudioArtworkInput" }
+      responses:
+        "201":
+          description: Artwork saved and Pinterest publishing started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudioArtworkCreateResponse" }
+        "400": { description: Invalid artwork record }
+        "401": { description: Studio access key required }
+
+  /studio/artworks/pinterest:
+    get:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: listStudioArtworkPinterest
+      tags: [studio]
+      summary: List durable artwork Pinterest publishing records
+      responses:
+        "200":
+          description: Artwork Pinterest publishing history
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StudioArtworkPinterestRecord" }
+        "401": { description: Studio access key required }
+
+  /studio/artworks/{id}/retry-pinterest:
+    post:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: retryStudioArtworkPinterest
+      tags: [studio]
+      summary: Retry Pinterest publishing for an artwork
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Pinterest publishing state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudioArtworkPinterestStatus" }
+        "401": { description: Studio access key required }
+        "404": { description: Artwork or Pinterest record not found }
+
+  /pinterest/oauth/callback:
+    get:
+      operationId: pinterestOAuthCallback
+      tags: [pinterest]
+      summary: Complete the Pinterest OAuth flow
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+        - name: state
+          in: query
+          required: true
+          schema: { type: string }
+        - name: error
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "302": { description: Redirect back to the Studio OS Pinterest desk }
+
+  /pinterest/status:
+    get:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: getPinterestStatus
+      tags: [pinterest]
+      summary: Return the current Pinterest connection status
+      responses:
+        "200":
+          description: Pinterest connection status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PinterestStatus" }
+
+  /pinterest/boards:
+    get:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: listPinterestBoards
+      tags: [pinterest]
+      summary: List boards from the connected Pinterest account
+      responses:
+        "200":
+          description: Pinterest boards
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PinterestBoardsResponse" }
+        "401": { description: Studio access key required }
+        "409": { description: Pinterest is not connected }
+  /pinterest/boards/sync:
+    post:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: syncPinterestBoards
+      tags: [pinterest]
+      summary: Create any missing Studio OS boards in Pinterest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PinterestBoardSyncInput" }
+      responses:
+        "200":
+          description: Synced Pinterest boards
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PinterestBoardsResponse" }
+
+  /pinterest/pins:
+    post:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: publishPinterestPin
+      tags: [pinterest]
+      summary: Publish one approved Pin to Pinterest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PinterestPublishPinInput" }
+      responses:
+        "201":
+          description: Published Pinterest Pin
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PinterestPublishPinResponse" }
+        "400": { description: Invalid Pin payload }
+        "401": { description: Studio access key required }
+        "409": { description: Pinterest is not connected }
+
+  /pinterest/disconnect:
+    post:
+      security: [{ adminPassword: [] }, { studioSessionCookie: [] }]
+      operationId: disconnectPinterest
+      tags: [pinterest]
+      summary: Remove the stored Pinterest connection
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    adminPassword:
+      type: apiKey
+      in: header
+      name: x-admin-password
+    studioSessionCookie:
+      type: apiKey
+      in: cookie
+      name: studio_access
+  parameters:
+    EntryId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    PatronPostProgress:
+      type: object
+      properties:
+        activeMembers:
+          type: integer
+          minimum: 0
+        goal:
+          type: integer
+          const: 1000
+      required:
+        - activeMembers
+        - goal
+
+    PatronPostQuestionInput:
+      type: object
+      properties:
+        question:
+          type: string
+          minLength: 10
+          maxLength: 1200
+      required: [question]
+
+    PatronPostQuestionSubmission:
+      type: object
+      properties:
+        submitted:
+          type: boolean
+          const: true
+        message:
+          type: string
+      required: [submitted, message]
+
+    PatronPostQuestionStatus:
+      type: string
+      enum: [new, reviewed]
+
+    PatronPostQuestionRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        question:
+          type: string
+        status:
+          $ref: "#/components/schemas/PatronPostQuestionStatus"
+        createdAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: ["string", "null"]
+          format: date-time
+      required: [id, question, status, createdAt, reviewedAt]
+
+    PatronPostQuestionsResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/PatronPostQuestionRecord"
+
+    ArtHouseApplicationInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        applyingAs:
+          type: string
+          enum: [solo, duo]
+        secondArtistName:
+          type: string
+          maxLength: 120
+        portfolioUrl:
+          type: string
+          format: uri
+          maxLength: 500
+        availableFrom:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        availableTo:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        residencyPlan:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        sharedLiving:
+          type: string
+          minLength: 10
+          maxLength: 1200
+        friendsDescription:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        networkMember:
+          type: boolean
+        networkConnection:
+          type: string
+          maxLength: 1200
+        considerPatronPost:
+          type: boolean
+        privacyConsent:
+          type: boolean
+          const: true
+        honeypot:
+          type: string
+          maxLength: 0
+      required:
+        - name
+        - email
+        - applyingAs
+        - portfolioUrl
+        - availableFrom
+        - availableTo
+        - residencyPlan
+        - sharedLiving
+        - friendsDescription
+        - networkMember
+        - considerPatronPost
+        - privacyConsent
+
+    ArtHouseApplicationSubmission:
+      type: object
+      properties:
+        submitted:
+          type: boolean
+          const: true
+      required: [submitted]
+
+    ArtHouseApplicationStatus:
+      type: string
+      enum: [new, reviewed]
+
+    ArtHouseApplicationRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        applyingAs:
+          type: string
+          enum: [solo, duo]
+        secondArtistName:
+          type: ["string", "null"]
+        portfolioUrl:
+          type: string
+          format: uri
+        availableForAllDates:
+          type: boolean
+        availableFrom:
+          type: ["string", "null"]
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        availableTo:
+          type: ["string", "null"]
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        residencyPlan:
+          type: string
+        sharedLiving:
+          type: string
+        friendsDescription:
+          type: string
+        networkMember:
+          type: boolean
+        networkConnection:
+          type: string
+        considerPatronPost:
+          type: boolean
+        privacyConsentAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/ArtHouseApplicationStatus"
+        createdAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - name
+        - email
+        - applyingAs
+        - secondArtistName
+        - portfolioUrl
+        - availableForAllDates
+        - availableFrom
+        - availableTo
+        - residencyPlan
+        - sharedLiving
+        - friendsDescription
+        - networkMember
+        - networkConnection
+        - considerPatronPost
+        - privacyConsentAt
+        - status
+        - createdAt
+        - reviewedAt
+
+    ArtHouseApplicationsResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/ArtHouseApplicationRecord"
+
+    ArtHouseApplicationStatusUpdate:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/ArtHouseApplicationStatus"
+      required: [status]
+
+    PatronPostQuestionStatusUpdate:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/PatronPostQuestionStatus"
+      required: [status]
+
+    PatronPostQuestionError:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    PatronPostContributionBeneficiary:
+      type: string
+      enum: ["Countercult", "Sketchy Shona"]
+
+    PatronPostContributionStatus:
+      type: string
+      enum: [paid, open, unpaid, expired]
+
+    PatronPostContributionRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        beneficiary:
+          $ref: "#/components/schemas/PatronPostContributionBeneficiary"
+        amountCents:
+          type: ["integer", "null"]
+        currency:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/PatronPostContributionStatus"
+      required: [id, beneficiary, amountCents, currency, createdAt, status]
+
+    PatronPostContributionTotal:
+      type: object
+      properties:
+        beneficiary:
+          $ref: "#/components/schemas/PatronPostContributionBeneficiary"
+        currency:
+          type: string
+        paidCount:
+          type: integer
+          minimum: 0
+        paidAmountCents:
+          type: integer
+          minimum: 0
+      required: [beneficiary, currency, paidCount, paidAmountCents]
+
+    StudioPatronPostContributionsResponse:
+      type: object
+      properties:
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/PatronPostContributionTotal"
+        contributions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PatronPostContributionRecord"
+      required: [totals, contributions]
+
+    SpaceClaimInvitationInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        scheduledAt:
+          type: string
+          format: date-time
+        verificationConfirmed:
+          type: boolean
+          const: true
+      required: [email, verificationConfirmed]
+
+    CuratedPinInput:
+      type: object
+      properties:
+        sourceKey: { type: string, minLength: 1, maxLength: 120 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        kind: { type: string, enum: [artist, space] }
+        city: { type: string, minLength: 1, maxLength: 200 }
+        country: { type: string, minLength: 1, maxLength: 100 }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+        url: { type: string, format: uri, maxLength: 1000 }
+        tags:
+          type: array
+          items: { type: string, maxLength: 80 }
+        contactEmail:
+          type: ["string", "null"]
+          format: email
+          maxLength: 320
+        replaceEntryId:
+          type: integer
+          minimum: 1
+      required: [sourceKey, name, kind, city, country, lat, lng, url, tags]
+
+    CuratedPinBatchInput:
+      type: object
+      properties:
+        entries:
+          type: array
+          minItems: 1
+          maxItems: 55
+          items:
+            $ref: "#/components/schemas/CuratedPinInput"
+        retireEntryIds:
+          type: array
+          maxItems: 55
+          items: { type: integer, minimum: 1 }
+      required: [entries]
+
+    CuratedPinBatchResult:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              sourceKey: { type: string }
+              id: { type: integer }
+              action: { type: string, enum: [created, existing] }
+            required: [sourceKey, id, action]
+      required: [results]
+
+    SpaceClaimInvitationResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        entryId:
+          type: integer
+        entryName:
+          type: string
+        email:
+          type: string
+          format: email
+        expiresAt:
+          type: string
+          format: date-time
+      required: [ok, entryId, entryName, email, expiresAt]
+
+    SpaceClaimTokenInput:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 12
+          maxLength: 64
+          pattern: "^(?:[A-F0-9]{12}|[a-f0-9]{64})$"
+      required: [token]
+
+    SpaceClaimInvitationDetails:
+      type: object
+      properties:
+        entryId:
+          type: integer
+        entryName:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        email:
+          type: string
+          format: email
+        hasAccount:
+          type: boolean
+        hasPassword:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+      required: [entryId, entryName, city, country, email, hasAccount, hasPassword, expiresAt]
+
+    SpaceClaimAcceptInput:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 12
+          maxLength: 64
+          pattern: "^(?:[A-F0-9]{12}|[a-f0-9]{64})$"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 200
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 120
+      required: [token, password]
+
+    SpaceClaimAcceptResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        token:
+          type: string
+        email:
+          type: string
+          format: email
+        isApproved:
+          type: boolean
+        canPostPartnerOffers:
+          type: boolean
+        accountRole:
+          type: string
+          enum: [member, partner_poster]
+        displayName:
+          type: ["string", "null"]
+        entryId:
+          type: integer
+        entryName:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      required: [ok, token, email, isApproved, canPostPartnerOffers, accountRole, entryId, entryName, expiresAt]
+
+    EntryKind:
+      type: string
+      enum: [artist, space, artifact]
+
+    EntryPin:
+      type: object
+      properties:
+        id:
+          type: integer
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        kind:
+          $ref: "#/components/schemas/EntryKind"
+        secondaryKind:
+          oneOf:
+            - $ref: "#/components/schemas/EntryKind"
+            - type: "null"
+        name:
+          type: string
+          description: The artist's public display name in a limited map preview; no biography or contact details are included.
+        city:
+          type: string
+        country:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        heroPhoto:
+          type: ["string", "null"]
+          description: Included only when public profile consent is recorded; portfolio media is never included in a public preview.
+        isProfilePreview:
+          type: boolean
+          description: True when this is a limited public artist preview rather than an approved-member pin.
+      required: [id, kind]
+
+    EntrySummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/EntryKind"
+        secondaryKind:
+          oneOf:
+            - $ref: "#/components/schemas/EntryKind"
+            - type: "null"
+        tags:
+          type: array
+          items:
+            type: string
+        openTo:
+          type: array
+          items:
+            type: string
+        basedIn:
+          type: array
+          description: Additional cities where this public profile is based.
+          items:
+            type: string
+        city:
+          type: string
+        country:
+          type: string
+        heroPhoto:
+          type: ["string", "null"]
+        isClaimed:
+          type: boolean
+        isCommunitySubmitted:
+          type: boolean
+        hasContactEmail:
+          type: boolean
+          description: Whether a contact email is on file, without exposing the address itself.
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        shopUrl:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+      required: [id, name, kind, tags, basedIn, city, country, isClaimed, isCommunitySubmitted, hasContactEmail]
+
+    PublicArtistCard:
+      type: object
+      description: Minimal teaser data for an artist who explicitly consented to a public profile.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/EntryKind"
+        city:
+          type: string
+        country:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        openTo:
+          type: array
+          items:
+            type: string
+        offeringChoices:
+          type: array
+          description: Broad selected offering categories only; free-text offering details are withheld.
+          items:
+            type: string
+        heroPhoto:
+          type: ["string", "null"]
+      required: [id, name, kind, city, country, tags, openTo, offeringChoices, heroPhoto]
+
+    PublicVoice:
+      type: object
+      description: A join answer from an approved, published member profile; artist answers are returned only when selected for public voice cards.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/EntryKind"
+        city:
+          type: string
+        country:
+          type: string
+        joinReason:
+          type: string
+      required: [id, name, kind, city, country, joinReason]
+
+    ExternalLink:
+      type: object
+      properties:
+        platform:
+          type: string
+        url:
+          type: string
+      required: [platform, url]
+
+    Entry:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/EntryKind"
+        secondaryKind:
+          oneOf:
+            - $ref: "#/components/schemas/EntryKind"
+            - type: "null"
+        tags:
+          type: array
+          items:
+            type: string
+        subcultures:
+          type: array
+          items:
+            type: string
+        city:
+          type: string
+        country:
+          type: string
+        postal:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        blurb:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+        heroPhoto:
+          type: ["string", "null"]
+        portfolioPhotos:
+          type: array
+          items:
+            type: string
+        isClaimed:
+          type: boolean
+        hasContactEmail:
+          type: boolean
+          description: Whether a contact email is on file, without exposing the address itself.
+        scrapingConsent:
+          type: boolean
+        externalLinks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalLink"
+        discoveredLinks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalLink"
+        experiences:
+          type: array
+          items:
+            $ref: "#/components/schemas/Experience"
+        shopUrl:
+          type: ["string", "null"]
+        offerings:
+          type: ["string", "null"]
+          description: Plain-language ways people can work with or buy from this profile
+        organizationModel:
+          type: ["string", "null"]
+          enum: [artist_run, nonprofit, community, independent, commercial_operator, hospitality, agency, institution, other, null]
+        intendedCommercialUse:
+          type: ["boolean", "null"]
+        derivedClassification:
+          type: string
+          enum: [independent, commercial, needs_review]
+        basedIn:
+          type: array
+          items:
+            type: string
+        openTo:
+          type: array
+          items:
+            type: string
+          description: Artist availability signals (e.g. "residencies", "commissions")
+        spaceOfferAvailable:
+          type: boolean
+          description: Whether a space is open to sharing its venue with artists
+        spaceOfferTypes:
+          type: array
+          items:
+            type: string
+          description: Types of artist activity the space can host
+        spaceOfferCategory:
+          type: ["string", "null"]
+          enum: [work, housing, residency, null]
+          description: Whether the offer is for creative work, housing, or a live-in residency
+        spaceOfferPricing:
+          type: ["string", "null"]
+          enum: [free, paid, case_by_case, null]
+          description: Whether the venue offer is free, paid, or decided per collaboration
+        spaceOfferDetails:
+          type: ["string", "null"]
+          description: Additional details about the venue offer
+        isHidden:
+          type: boolean
+          description: Whether this entry is hidden from public listings
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          name,
+          kind,
+          tags,
+          subcultures,
+          city,
+          country,
+          portfolioPhotos,
+          isClaimed,
+          hasContactEmail,
+          scrapingConsent,
+          createdAt,
+        ]
+
+    PublicEntry:
+      type: object
+      description: Public entry details. Private contact, consent, discovery, moderation, and space-offer fields are never returned here.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/EntryKind"
+        secondaryKind:
+          oneOf:
+            - $ref: "#/components/schemas/EntryKind"
+            - type: "null"
+        tags:
+          type: array
+          items:
+            type: string
+        subcultures:
+          type: array
+          items:
+            type: string
+        city:
+          type: string
+        country:
+          type: string
+        postal:
+          type: "null"
+        address:
+          type: "null"
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        blurb:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+        websitePreview:
+          oneOf:
+            - $ref: "#/components/schemas/WebsitePreview"
+            - type: "null"
+        heroPhoto:
+          type: ["string", "null"]
+        portfolioPhotos:
+          type: array
+          items:
+            type: string
+        isClaimed:
+          type: boolean
+        isCommunitySubmitted:
+          type: boolean
+          description: This space was suggested by the community and is not an owner endorsement.
+        claimRequestAvailable:
+          type: boolean
+          description: Whether this listing has no existing owner contact, is not owner-submitted or claimed, and is eligible for a manual access request.
+        externalLinks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalLink"
+        experiences:
+          type: array
+          items:
+            $ref: "#/components/schemas/Experience"
+        shopUrl:
+          type: ["string", "null"]
+        offerings:
+          type: ["string", "null"]
+        basedIn:
+          type: array
+          items:
+            type: string
+        openTo:
+          type: array
+          items:
+            type: string
+      required:
+        [
+          id,
+          name,
+          kind,
+          tags,
+          subcultures,
+          city,
+          country,
+          postal,
+          address,
+          portfolioPhotos,
+          isClaimed,
+          isCommunitySubmitted,
+          claimRequestAvailable,
+          externalLinks,
+          experiences,
+          basedIn,
+          openTo,
+          websitePreview,
+        ]
+
+    WebsitePreview:
+      type: object
+      properties:
+        sourceUrl:
+          type: string
+        title:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        fetchedAt:
+          type: string
+          format: date-time
+      required: [sourceUrl, title, description, imageUrl, fetchedAt]
+
+    SpaceSuggestionInput:
+      type: object
+      required: [name, city, country]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 200 }
+        city: { type: string, minLength: 1, maxLength: 120 }
+        country: { type: string, minLength: 1, maxLength: 120 }
+        url: { type: ["string", "null"], format: uri, maxLength: 2048 }
+        blurb: { type: ["string", "null"], maxLength: 600 }
+        heroPhoto: { type: ["string", "null"], maxLength: 2048 }
+        offerings: { type: ["string", "null"], maxLength: 1200 }
+        offeringChoices:
+          type: array
+          maxItems: 12
+          items: { type: string, minLength: 1, maxLength: 120 }
+        basedIn:
+          type: array
+          maxItems: 8
+          items: { type: string, minLength: 1, maxLength: 120 }
+        networkNextSteps: { type: ["string", "null"], maxLength: 1200 }
+        discoverySource: { type: ["string", "null"], maxLength: 600 }
+        profileVisibility: { type: string, enum: [public, network] }
+        profileVisibilityConsent: { type: boolean }
+        publicProfileConsent: { type: boolean }
+        adultConfirmed: { type: boolean }
+        spaceOfferAvailable: { type: boolean }
+        spaceOfferTypes:
+          type: array
+          maxItems: 6
+          items: { type: string, minLength: 1, maxLength: 120 }
+        spaceOfferCategory: { type: string, enum: [work, housing, residency] }
+        spaceOfferPricing: { type: string, enum: [free, paid, case_by_case] }
+        spaceOfferDetails: { type: ["string", "null"], maxLength: 600 }
+        tags:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 60 }
+
+    SpaceSuggestionCreated:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        isCommunitySubmitted: { type: boolean }
+        isClaimed: { type: boolean }
+        reviewRequired: { type: boolean }
+      required: [id, name, isCommunitySubmitted, isClaimed, reviewRequired]
+
+    NewEntry:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        kind:
+          $ref: "#/components/schemas/EntryKind"
+        secondaryKind:
+          oneOf:
+            - $ref: "#/components/schemas/EntryKind"
+            - type: "null"
+        tags:
+          type: array
+          items:
+            type: string
+        subcultures:
+          type: array
+          items:
+            type: string
+        city:
+          type: string
+          minLength: 1
+        country:
+          type: string
+          minLength: 1
+        postal:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        blurb:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+        offerings:
+          type: ["string", "null"]
+          description: Plain-language ways people can work with or buy from this profile
+        organizationModel:
+          type: ["string", "null"]
+          enum: [artist_run, nonprofit, community, independent, commercial_operator, hospitality, agency, institution, other, null]
+        intendedCommercialUse:
+          type: ["boolean", "null"]
+        commercialUseDescription:
+          type: ["string", "null"]
+          maxLength: 600
+        declaredClassification:
+          type: ["string", "null"]
+          enum: [independent, commercial, null]
+        heroPhoto:
+          type: ["string", "null"]
+        contactEmail:
+          type: ["string", "null"]
+          format: email
+        openTo:
+          type: array
+          items:
+            type: string
+          description: Artist availability signals (e.g. "residencies", "commissions")
+        joinReason:
+          type: ["string", "null"]
+          description: What the person can share with the network, plus optional context about what they hope to find
+        spaceOfferAvailable:
+          type: boolean
+          description: Whether a space is open to sharing its venue with artists
+        spaceOfferTypes:
+          type: array
+          items:
+            type: string
+          description: Types of artist activity the space can host
+        spaceOfferCategory:
+          type: ["string", "null"]
+          enum: [work, housing, residency, null]
+          description: Whether the offer is for creative work, housing, or a live-in residency
+        spaceOfferPricing:
+          type: ["string", "null"]
+          enum: [free, paid, case_by_case, null]
+          description: Whether the venue offer is free, paid, or decided per collaboration
+        spaceOfferDetails:
+          type: ["string", "null"]
+          description: Additional details about the venue offer
+      required: [name, kind, city, country]
+
+    ClaimEntryBody:
+      type: object
+      properties:
+        bio:
+          type: string
+        heroPhoto:
+          type: ["string", "null"]
+        portfolioPhotos:
+          type: array
+          items:
+            type: string
+        scrapingConsent:
+          type: boolean
+        externalLinks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalLink"
+        experiences:
+          type: array
+          items:
+            $ref: "#/components/schemas/Experience"
+        shopUrl:
+          type: ["string", "null"]
+        offerings:
+          type: ["string", "null"]
+          description: Plain-language ways people can work with or buy from this profile
+        basedIn:
+          type: array
+          items:
+            type: string
+        spaceOfferAvailable:
+          type: boolean
+        spaceOfferTypes:
+          type: array
+          items:
+            type: string
+        spaceOfferCategory:
+          type: ["string", "null"]
+          enum: [work, housing, residency, null]
+        spaceOfferPricing:
+          type: ["string", "null"]
+          enum: [free, paid, case_by_case, null]
+        spaceOfferDetails:
+          type: ["string", "null"]
+      required: []
+
+    Experience:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        date:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+      required: [title, description]
+
+    ClaimRequestBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required: [email]
+
+    ClaimVerifyBody:
+      type: object
+      properties:
+        email:
+          type: string
+        code:
+          type: string
+      required: [email, code]
+
+    ClaimSession:
+      type: object
+      properties:
+        token:
+          type: string
+        entryId:
+          type: ["integer", "null"]
+        entryName:
+          type: string
+        email:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      required: [token, entryId, entryName, email, expiresAt]
+
+    ResidencyOffer:
+      type: object
+      properties:
+        id:
+          type: integer
+        entryId:
+          type: ["integer", "null"]
+        entryName:
+          type: string
+        entryKind:
+          type: string
+        visibility:
+          type: string
+          enum: [public, network, private]
+        city:
+          type: string
+        kind:
+          type: string
+        description:
+          type: string
+        availableFrom:
+          type: ["string", "null"]
+        availableTo:
+          type: ["string", "null"]
+        availabilityMode:
+          type: ["string", "null"]
+          enum: [dates, flexible, null]
+          description: "For room-swap posts, dates means a specific available window; flexible means dates can be arranged with the other person."
+        contact:
+          type: ["string", "null"]
+        destination:
+          type: ["string", "null"]
+          description: Destination city or region for room swaps; hiring or commissioning party for paid gigs
+        cost:
+          type: ["string", "null"]
+          description: "Cost or pricing info (e.g. 'free', '€500/month', 'negotiable')"
+        duration:
+          type: ["string", "null"]
+          description: "Duration or length of stay (e.g. 'min. 2 weeks', '1–3 months')"
+        skillShareMode:
+          type: ["string", "null"]
+          enum: [swap, free_offer, null]
+          description: "Legacy free_offer values may appear on existing listings. New skill-share listings use reciprocal non-cash swaps."
+        requestedReturn:
+          type: ["string", "null"]
+          description: "For a skill swap, the specific skill, service, or resource requested in return. Agree comparable scope or time directly; Countercult does not assign a cash value."
+        virtualAvailable:
+          type: boolean
+          description: True when a skill share can also be offered virtually.
+        capacity:
+          type: ["string", "null"]
+          description: "Max guests or people (e.g. '1 person', 'couple ok', 'up to 3')"
+        tags:
+          type: array
+          items:
+            type: string
+          description: "Community and subculture tags, plus reserved exchange labels used for Housing/Spaces classification, swaps, and the fixed Exchange Residency cohort."
+        photos:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Up to 3 photo URLs for this listing
+        publicPhotos:
+          type: array
+          items:
+            type: string
+          description: Photo URLs explicitly selected by the owner for public display
+        publicPhotoUrls:
+          type: array
+          items:
+            type: string
+          description: Opaque public-serving URLs for explicitly public photos on a public listing
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        renewedAt:
+          type: ["string", "null"]
+          format: date-time
+        expiresAt:
+          type: ["string", "null"]
+          format: date-time
+          description: ISO timestamp when a short-term sublet reaches its availableTo date; null for listings that stay live until manually removed.
+        daysUntilExpiry:
+          type: ["number", "null"]
+          description: Days until a short-term sublet reaches its availableTo date; null for listings that stay live until manually removed.
+        isPublicPreview:
+          type: boolean
+          description: True when the response is an anonymous teaser and protected post details are intentionally omitted.
+        hasPublicMapLocation:
+          type: boolean
+          description: True only for a public teaser whose city may be shown as a broad map area; omitted for network-only teasers.
+        publicCategory:
+          type: string
+          enum: [housing, spaces, skills, opportunities, tools, swaps]
+          description: Coarse browsing category provided only for public teaser listings; omitted for network-only teasers.
+        publicCategories:
+          type: array
+          items:
+            type: string
+            enum: [housing, spaces, skills, opportunities, tools, swaps]
+          description: Safe coarse browse categories for public teaser listings, including listings that belong under both Housing and Spaces.
+        publicSubfilters:
+          type: array
+          items:
+            type: string
+            enum: [housing_residency, housing_sublet, housing_long_term, housing_hosted, housing_swap, spaces_workspace, spaces_event, spaces_flexible, spaces_shared, spaces_swap]
+          description: Safe subtype labels for public teaser listings. These reveal browse classification only, not private contact or arrangement details.
+        isOwn:
+          type: boolean
+          description: True when the authenticated viewer can edit and remove this listing. Omitted from anonymous teaser responses.
+      required: [id, city, kind, description, isPublicPreview]
+
+    HomepageExchangePicks:
+      type: array
+      items:
+        $ref: "#/components/schemas/HomepageExchangePick"
+
+    HomepageExchangePick:
+      type: object
+      description: Minimal anonymous-safe fields used for a homepage Exchange card.
+      properties:
+        id:
+          type: integer
+        city:
+          type: string
+        description:
+          type: string
+        isPublicPreview:
+          type: boolean
+          enum: [true]
+      required: [id, city, description, isPublicPreview]
+
+    HomepageExchangePicksOrderInput:
+      type: object
+      required: [offerIds]
+      properties:
+        offerIds:
+          type: array
+          maxItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 1
+
+    HomepageExchangePicksOrder:
+      type: object
+      required: [offerIds]
+      properties:
+        offerIds:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+
+    Advert:
+      type: object
+      properties:
+        id: { type: integer }
+        tier: { type: string, enum: [free, community, commercial] }
+        direction: { type: string, enum: [service, hiring, open_call] }
+        posterName: { type: string }
+        city: { type: string }
+        title: { type: string }
+        rate: { type: ["string", "null"], maxLength: 120, description: "Optional explicit rate or budget. Hiring adverts with a stated amount are also listed on Exchange." }
+        description: { type: string }
+        contact: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+      required: [id, tier, direction, posterName, city, title, rate, description, contact, createdAt, expiresAt]
+
+    AdvertCreated:
+      type: object
+      properties:
+        id: { type: integer }
+        published: { type: boolean }
+      required: [id, published]
+
+    AdvertInput:
+      type: object
+      properties:
+        direction: { type: string, enum: [service, hiring, open_call] }
+        posterName: { type: string, minLength: 1, maxLength: 100 }
+        posterEmail: { type: string, format: email, maxLength: 254 }
+        city: { type: string, minLength: 1, maxLength: 100 }
+        title: { type: string, minLength: 1, maxLength: 120 }
+        rate: { type: string, maxLength: 120, description: "Optional. A hiring advert needs a stated amount to appear on Exchange." }
+        description: { type: string, minLength: 10, maxLength: 4000 }
+        contact: { type: string, minLength: 1, maxLength: 300 }
+      required: [direction, posterName, posterEmail, city, title, description, contact]
+
+    AdvertCheckout:
+      type: object
+      properties:
+        url: { type: string, format: uri }
+      required: [url]
+
+    AdvertPaymentStatus:
+      type: object
+      properties:
+        paid: { type: boolean }
+      required: [paid]
+
+    NewResidencyOffer:
+      type: object
+      description: "For room-swap kinds, availableFrom, availableTo, cost, and duration are required; capacity is also required for host and swap. Space kinds (workshop, concert, free_space, venue_offer) must state whether access is free or paid. Swap and skill-share posts are always free. New skill-share posts require a specific reciprocal non-cash return; vague self-promotion is not accepted. New looking-for listings are rejected."
+      properties:
+        kind:
+          type: string
+        city:
+          type: string
+        description:
+          type: string
+        availableFrom:
+          type: ["string", "null"]
+        availableTo:
+          type: ["string", "null"]
+        availabilityMode:
+          type: ["string", "null"]
+          enum: [dates, flexible, null]
+          description: "Required for room-swap listings. Choose dates for a specific window or flexible when timing can be agreed later."
+        contact:
+          type: ["string", "null"]
+        destination:
+          type: ["string", "null"]
+          description: Destination city or region for room swaps; hiring or commissioning party for paid gigs
+        cost:
+          type: ["string", "null"]
+          description: "Cost or pricing info. Space kinds must say 'free' or give the price and terms (e.g. '€40/hour')."
+        duration:
+          type: ["string", "null"]
+          description: "Duration or length of stay (e.g. 'min. 2 weeks', '1–3 months')"
+        skillShareMode:
+          type: ["string", "null"]
+          enum: [swap, null]
+          description: "For skill-share listings, use swap for a reciprocal non-cash trade."
+        requestedReturn:
+          type: ["string", "null"]
+          maxLength: 600
+          description: "Required for skillShareMode swap. Name the specific item, equipment, skill, or help requested. Keep the trade non-monetary; promotional asks such as exposure or followers are not a return."
+        virtualAvailable:
+          type: boolean
+          description: True when the skill exchange can happen online, including for people in different countries.
+        capacity:
+          type: ["string", "null"]
+          description: "Max guests or people (e.g. '1 person', 'couple ok', 'up to 3')"
+        tags:
+          type: array
+          items:
+            type: string
+          description: "Community and subculture tags, plus one optional reserved exchange label: exchange residency or self-led exchange."
+        photos:
+          type: array
+          items:
+            type: string
+          description: Up to 3 photo URLs for this listing
+        publicPhotos:
+          type: array
+          items:
+            type: string
+          description: Photo URLs explicitly selected by the owner for public display
+        visibility:
+          type: string
+          enum: [public, network]
+          default: public
+      required: [kind, city, description]
+
+    UpdateResidencyOffer:
+      type: object
+      description: "All fields are optional — only provided fields are updated. Room-swap listings must retain availableFrom, availableTo, cost, duration, and capacity. Space kinds must retain a free or paid price/access statement. Skill-share listings must use a reciprocal non-cash swap and include a specific requestedReturn."
+      properties:
+        city:
+          type: string
+        description:
+          type: string
+        availableFrom:
+          type: ["string", "null"]
+        availableTo:
+          type: ["string", "null"]
+        availabilityMode:
+          type: ["string", "null"]
+          enum: [dates, flexible, null]
+        contact:
+          type: ["string", "null"]
+        destination:
+          type: ["string", "null"]
+          description: Destination city or region for room swaps; hiring or commissioning party for paid gigs
+        cost:
+          type: ["string", "null"]
+          description: "Cost or pricing info. Space kinds must say 'free' or give the price and terms (e.g. '€40/hour')."
+        duration:
+          type: ["string", "null"]
+          description: "Duration or length of stay (e.g. 'min. 2 weeks', '1–3 months')"
+        skillShareMode:
+          type: ["string", "null"]
+          enum: [swap, null]
+        requestedReturn:
+          type: ["string", "null"]
+          maxLength: 600
+        virtualAvailable:
+          type: boolean
+        capacity:
+          type: ["string", "null"]
+          description: "Max guests or people (e.g. '1 person', 'couple ok', 'up to 3')"
+        tags:
+          type: array
+          items:
+            type: string
+          description: "Community and subculture tags, plus one optional reserved exchange label: exchange residency or self-led exchange."
+        photos:
+          type: array
+          items:
+            type: string
+          description: Up to 3 photo URLs for this listing
+        publicPhotos:
+          type: array
+          items:
+            type: string
+          description: Photo URLs explicitly selected by the owner for public display
+        visibility:
+          type: string
+          enum: [public, network, private]
+
+    MatchingResidencyOffer:
+      type: object
+      properties:
+        id:
+          type: integer
+        entryId:
+          type: ["integer", "null"]
+        name:
+          type: string
+        email:
+          type: ["string", "null"]
+        contact:
+          type: ["string", "null"]
+        city:
+          type: string
+        destination:
+          type: ["string", "null"]
+        description:
+          type: string
+        availableFrom:
+          type: ["string", "null"]
+        availableTo:
+          type: ["string", "null"]
+        photos:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+        isResident:
+          type: boolean
+      required: [id, name, email, contact, city, description, photos, isActive, isResident]
+
+    ResidencyShortlist:
+      type: object
+      properties:
+        id:
+          type: integer
+        applicantOfferId:
+          type: integer
+        partnerOfferId:
+          type: integer
+        notes:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [shortlisted, matched]
+        applicantContactedAt:
+          type: ["string", "null"]
+          format: date-time
+        partnerContactedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        applicant:
+          $ref: "#/components/schemas/MatchingResidencyOffer"
+        partner:
+          $ref: "#/components/schemas/MatchingResidencyOffer"
+      required: [id, applicantOfferId, partnerOfferId, notes, status, applicantContactedAt, partnerContactedAt, createdAt, updatedAt]
+
+    ResidencyMatchingWorkspace:
+      type: object
+      properties:
+        applicants:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatchingResidencyOffer"
+        shortlists:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResidencyShortlist"
+      required: [applicants, shortlists]
+
+    ResidencyShortlistInput:
+      type: object
+      properties:
+        partnerOfferId:
+          type: integer
+        notes:
+          type: ["string", "null"]
+      required: [partnerOfferId]
+
+    ResidencyShortlistUpdate:
+      type: object
+      properties:
+        notes:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [shortlisted, matched]
+
+    ResidencyContactInput:
+      type: object
+      properties:
+        target:
+          type: string
+          enum: [applicant, partner]
+        confirm:
+          type: boolean
+      required: [target, confirm]
+
+    ResidencyContactResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResidencyShortlist"
+        - type: object
+          properties:
+            target:
+              type: string
+              enum: [applicant, partner]
+            contact:
+              type: string
+          required: [target, contact]
+
+    ArtistStatus:
+      type: string
+      enum: [pending, approved, rejected]
+
+    Artist:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        instagramUrl:
+          type: string
+        location:
+          type: string
+        address:
+          type: ["string", "null"]
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        bio:
+          type: ["string", "null"]
+        photos:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: "#/components/schemas/ArtistStatus"
+        isClaimed:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          name,
+          instagramUrl,
+          location,
+          photos,
+          status,
+          isClaimed,
+          createdAt,
+          updatedAt,
+        ]
+
+    NewArtist:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        instagramUrl:
+          type: string
+          minLength: 1
+        location:
+          type: string
+          minLength: 1
+        address:
+          type: ["string", "null"]
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+      required: [name, instagramUrl, location]
+
+    ArtistUpdate:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/ArtistStatus"
+        isClaimed:
+          type: boolean
+        bio:
+          type: ["string", "null"]
+        photos:
+          type: array
+          items:
+            type: string
+        name:
+          type: string
+        instagramUrl:
+          type: string
+        location:
+          type: string
+        address:
+          type: ["string", "null"]
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+
+    PostSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        authorName:
+          type: string
+        authorEntryId:
+          type: ["integer", "null"]
+        heroImage:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, kind, title, body, authorName, tags, createdAt]
+
+    NewPost:
+      type: object
+      properties:
+        kind:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        heroImage:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+      required: [kind, title, body]
+
+    CommercialPlanInput:
+      type: object
+      required: [interval]
+      properties:
+        interval:
+          type: string
+          enum: [month, year]
+    SpaceSubscriptionStatus:
+      type: object
+      required: [isPro, toolsEnabled, hasBillingAccount, status, classification]
+      properties:
+        isPro: { type: boolean }
+        toolsEnabled: { type: boolean }
+        hasBillingAccount: { type: boolean }
+        status: { type: ["string", "null"] }
+        classification:
+          type: string
+          enum: [independent, commercial, needs_review]
+    SpaceEnquiryInput:
+      type: object
+      required: [name, email, enquiryType, message]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        email: { type: string, format: email }
+        enquiryType: { type: string, enum: [booking, collaboration, programme, other] }
+        message: { type: string, minLength: 1, maxLength: 2000 }
+    SpaceEnquiry:
+      type: object
+      required: [id, name, email, enquiryType, message, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        enquiryType: { type: string }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+    SpaceBusinessTools:
+      type: object
+      required: [views, enquiries, items]
+      properties:
+        views: { type: integer }
+        enquiries: { type: integer }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SpaceEnquiry" }
+    CheckoutLink:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string }
+    ClassificationReviewInput:
+      type: object
+      required: [classification]
+      properties:
+        classification:
+          type: string
+          enum: [independent, commercial]
+    AdminSpace:
+      type: object
+      required: [id, name, city, status, derivedClassification, paymentStatus]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        city: { type: string }
+        status: { type: string }
+        organizationModel: { type: ["string", "null"] }
+        intendedCommercialUse: { type: ["boolean", "null"] }
+        commercialUseDescription: { type: ["string", "null"] }
+        declaredClassification: { type: ["string", "null"] }
+        derivedClassification: { type: string, enum: [independent, commercial, needs_review] }
+        reviewedClassification: { type: ["string", "null"], enum: [independent, commercial, null] }
+        paymentStatus: { type: string }
+    AdminSubmission:
+      type: object
+      required: [id, name, kind, city, country, status]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { $ref: "#/components/schemas/EntryKind" }
+        city: { type: string }
+        country: { type: string }
+        status: { type: string }
+        contactEmail: { type: ["string", "null"] }
+        blurb: { type: ["string", "null"] }
+        url: { type: ["string", "null"] }
+        heroPhoto: { type: ["string", "null"] }
+    AdminSubmissionStatusResult:
+      type: object
+      required: [ok, entry]
+      properties:
+        ok: { type: boolean }
+        entry:
+          $ref: "#/components/schemas/AdminSubmission"
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    AccountRegistrationInput:
+      type: object
+      description: Registration fields for the current member and partner signup flows. Discovery and campaign attribution fields are internal and never shown on public profiles.
+      required: [email, officialEmailConfirmed, adultConfirmed, dataProcessingConsent, password, name]
+      properties:
+        email: { type: string, format: email }
+        officialEmailConfirmed: { type: boolean }
+        adultConfirmed: { type: boolean }
+        dataProcessingConsent:
+          type: boolean
+          description: Explicit consent to collect, store, and use submitted account and application data as described in the Privacy Notice.
+        password: { type: string, minLength: 8 }
+        accountRole: { type: string, enum: [member, partner_poster] }
+        kind: { type: string, enum: [artist, space] }
+        physicalSpaceConfirmed:
+          type: boolean
+          description: Confirms a space application represents a physical place where people gather or meet.
+        name: { type: string, minLength: 2, maxLength: 120 }
+        socialHandle:
+          type: string
+          format: uri
+          maxLength: 300
+          pattern: '^[hH][tT][tT][pP][sS]?://\S+$'
+        city: { type: string, maxLength: 120 }
+        country: { type: string, maxLength: 120 }
+        blurb: { type: string, maxLength: 1000 }
+        tags: { type: string, maxLength: 500 }
+        heroPhoto: { type: string }
+        openTo:
+          type: array
+          maxItems: 10
+          items: { type: string }
+        offeringChoices:
+          type: array
+          maxItems: 12
+          items: { type: string }
+        joinReason:
+          type: string
+          maxLength: 800
+          description: Legacy response retained for previously collected community voices. New signup answers belong in discoverySource and networkNextSteps.
+        discoverySource:
+          type: string
+          description: Optional selected category describing how the applicant heard about Countercult.
+        signupSource: { type: string, maxLength: 100, pattern: '^[a-zA-Z0-9._-]+$' }
+        signupMedium: { type: string, maxLength: 100, pattern: '^[a-zA-Z0-9._-]+$' }
+        signupCampaign: { type: string, maxLength: 100, pattern: '^[a-zA-Z0-9._-]+$' }
+        signupReferrerDomain: { type: string, maxLength: 253, pattern: '^[a-zA-Z0-9.-]+$' }
+        signupLandingPath:
+          type: string
+          maxLength: 255
+          pattern: '^/(?!/)[^?#]*$'
+          description: Initial site path without query parameters or fragments.
+        networkNextSteps:
+          type: string
+          description: Free-text answer about plans to share with or reach out to the network. Kept internal and not shown on the public profile.
+        shopUrl: { type: string, maxLength: 300 }
+        offerings: { type: string, maxLength: 1200 }
+        basedIn:
+          type: array
+          maxItems: 8
+          items: { type: string, maxLength: 120 }
+        newsletterOptIn: { type: boolean }
+        exchangeDigestOptIn:
+          type: boolean
+          description: Optional weekly Exchange digest consent. Digest delivery begins only after the account is approved.
+        profileVisibility: { type: string, enum: [public, network] }
+        profileVisibilityConsent: { type: boolean }
+        publicProfileConsent: { type: boolean }
+        curatedBy: { type: string, maxLength: 200 }
+        referralCode: { type: string, maxLength: 100 }
+        draftToken: { type: string, pattern: "^[a-f0-9]{64}$" }
+        spaceAccess: { type: string, enum: [public, appointment_only, community_protected] }
+        spaceOfferAvailable: { type: boolean }
+        spaceOfferTypes:
+          type: array
+          maxItems: 6
+          items: { type: string }
+        spaceOfferCategory: { type: string, enum: [work, housing, residency] }
+        spaceOfferPricing: { type: string, enum: [free, paid, case_by_case] }
+        spaceOfferDetails: { type: string, maxLength: 600 }
+        organizationModel:
+          type: string
+          enum: [artist_run, nonprofit, community, independent, commercial_operator, hospitality, agency, institution, other]
+        intendedCommercialUse: { type: boolean }
+        commercialUseDescription: { type: string, maxLength: 600 }
+        url: { type: string }
+        discipline: { type: string }
+        socials: { type: string }
+        swapType: { type: string }
+        spacePrivacy: { type: string }
+        financialStructure: { type: string }
+        costDetails: { type: string }
+        durationTerms: { type: string }
+        vibeTags: { type: string }
+        dealbreakers: { type: string }
+        noiseAndGuests: { type: string }
+      additionalProperties: true
+    AccountRegistrationResult:
+      type: object
+      required: [ok, token, email, isApproved, entryId, accountRole, displayName, expiresAt, newsletterOptIn, curatorCodeAccepted, referralAccepted]
+      properties:
+        ok: { type: boolean }
+        token: { type: string }
+        email: { type: string, format: email }
+        isApproved: { type: boolean }
+        entryId: { type: ["integer", "null"] }
+        accountRole: { type: string, enum: [member, partner_poster] }
+        displayName: { type: string }
+        expiresAt: { type: string, format: date-time }
+        newsletterOptIn: { type: boolean }
+        curatorCodeAccepted: { type: boolean }
+        referralAccepted: { type: boolean }
+        curatorCodeMessage: { type: string }
+    MemberSessionEntry:
+      type: object
+      required: [id, name, kind, city, country, status]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string }
+        city: { type: string }
+        country: { type: string }
+        status: { type: string }
+    MemberSessionResponse:
+      type: object
+      required: [email, isApproved, accountRole, canPostPartnerOffers, displayName, entryId, entries, newsletterOptIn, ruralDiscoveryOptIn, exchangeDigestOptIn]
+      properties:
+        email: { type: string, format: email }
+        isApproved: { type: boolean }
+        accountRole: { type: string, enum: [member, partner_poster] }
+        canPostPartnerOffers: { type: boolean }
+        displayName: { type: ["string", "null"] }
+        entryId: { type: ["integer", "null"] }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/MemberSessionEntry" }
+        newsletterOptIn: { type: boolean }
+        ruralDiscoveryOptIn: { type: boolean }
+        exchangeDigestOptIn: { type: boolean }
+    MemberPreferencesInput:
+      type: object
+      required: [newsletterOptIn, ruralDiscoveryOptIn]
+      properties:
+        newsletterOptIn: { type: boolean }
+        ruralDiscoveryOptIn: { type: boolean }
+        exchangeDigestOptIn: { type: boolean }
+    MemberPreferencesResponse:
+      type: object
+      required: [newsletterOptIn, ruralDiscoveryOptIn, exchangeDigestOptIn]
+      properties:
+        newsletterOptIn: { type: boolean }
+        ruralDiscoveryOptIn: { type: boolean }
+        exchangeDigestOptIn: { type: boolean }
+    SignupLocationInput:
+      type: object
+      required: [city, country]
+      properties:
+        city: { type: string, minLength: 2, maxLength: 120 }
+        country: { type: string, minLength: 2, maxLength: 120 }
+    SignupLocationResult:
+      type: object
+      required: [ok, city, country]
+      properties:
+        ok: { type: boolean }
+        city: { type: string }
+        country: { type: string }
+    SignupLocationError:
+      type: object
+      required: [field, error]
+      properties:
+        field: { type: string, enum: [location] }
+        error: { type: string }
+
+    PinterestOAuthStart:
+      type: object
+      required: [authorizationUrl]
+      properties:
+        authorizationUrl: { type: string, format: uri }
+    PinterestStatus:
+      type: object
+      required: [connected, username, expiresAt]
+      properties:
+        connected: { type: boolean }
+        username: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"], format: date-time }
+    PinterestBoard:
+      type: object
+      required: [id, name, description, privacy, pinCount]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        privacy: { type: string }
+        pinCount: { type: integer }
+    PinterestBoardsResponse:
+      type: object
+      required: [boards]
+      properties:
+        boards:
+          type: array
+          items: { $ref: "#/components/schemas/PinterestBoard" }
+    PinterestBoardSyncInput:
+      type: object
+      required: [boards]
+      properties:
+        boards:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string, minLength: 1, maxLength: 100 }
+              description: { type: string, maxLength: 500 }
+    PinterestPublishPinInput:
+      type: object
+      required: [boardId, title, description, altText, link, imageUrl]
+      properties:
+        boardId: { type: string, minLength: 1, maxLength: 120 }
+        title: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500 }
+        altText: { type: string, maxLength: 500 }
+        link: { type: string, format: uri }
+        imageUrl: { type: string, format: uri }
+    PinterestPublishPinResponse:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: ["string", "null"] }
+        status: { type: string, enum: [published] }
+
+    StudioArtworkPhoto:
+      type: object
+      required: [name, objectPath, src]
+      properties:
+        name: { type: string }
+        objectPath: { type: string }
+        src: { type: string, format: uri }
+    StudioArtworkDestinations:
+      type: object
+      required: [website, store, social, newsletter, marketplaces]
+      properties:
+        website: { type: string, enum: ["Not prepared", Prepared] }
+        store: { type: string, enum: ["Not prepared", Prepared] }
+        social: { type: string, enum: ["Not prepared", Prepared] }
+        newsletter: { type: string, enum: ["Not prepared", Prepared] }
+        marketplaces: { type: string, enum: ["Not prepared", Prepared] }
+    StudioSessionInput:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, minLength: 1, maxLength: 512, format: password }
+    StudioSessionStatus:
+      type: object
+      required: [authenticated]
+      properties:
+        authenticated: { type: boolean }
+    BookingGuidePassphraseInput:
+      type: object
+      required: [passphrase]
+      properties:
+        passphrase: { type: string, minLength: 1, maxLength: 256, format: password }
+    BookingGuideAccessStatus:
+      type: object
+      required: [authenticated]
+      properties:
+        authenticated: { type: boolean }
+    BookingGuideStop:
+      type: object
+      required: [name, detail, mapsUrl]
+      properties:
+        name: { type: string }
+        detail: { type: string }
+        mapsUrl: { type: string, format: uri }
+    BookingGuideTip:
+      type: object
+      required: [title, detail]
+      properties:
+        title: { type: string }
+        detail: { type: string }
+    BookingGuideContent:
+      type: object
+      required: [title, introduction, route, tips]
+      properties:
+        title: { type: string }
+        introduction: { type: string }
+        route:
+          type: array
+          items: { $ref: "#/components/schemas/BookingGuideStop" }
+        tips:
+          type: array
+          items: { $ref: "#/components/schemas/BookingGuideTip" }
+    StudioPublicArtworkPhoto:
+      type: object
+      required: [name, src]
+      properties:
+        name: { type: string }
+        src: { type: string, format: uri }
+    StudioPublicArtwork:
+      type: object
+      required: [id, title, seoTitle, seoDescription, seoKeywords, year, dimensions, medium, price, availability, photos]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        seoTitle: { type: string }
+        seoDescription: { type: string }
+        seoKeywords:
+          type: array
+          items: { type: string }
+        year: { type: string }
+        dimensions: { type: string }
+        medium: { type: string }
+        price: { type: string }
+        availability: { type: string, enum: [Available, Reserved, Sold, "Not for sale"] }
+        photos:
+          type: array
+          items: { $ref: "#/components/schemas/StudioPublicArtworkPhoto" }
+    StudioArtwork:
+      type: object
+      required: [id, title, seoTitle, seoDescription, seoKeywords, year, dimensions, medium, price, availability, notes, photos, readiness, destinations, updatedAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        seoTitle: { type: string }
+        seoDescription: { type: string }
+        seoKeywords:
+          type: array
+          items: { type: string }
+        year: { type: string }
+        dimensions: { type: string }
+        medium: { type: string }
+        price: { type: string }
+        availability: { type: string, enum: [Available, Reserved, Sold, "Not for sale"] }
+        notes: { type: string }
+        photos:
+          type: array
+          items: { $ref: "#/components/schemas/StudioArtworkPhoto" }
+        readiness: { type: string, enum: ["Needs details", "Ready for review", "In review"] }
+        destinations: { $ref: "#/components/schemas/StudioArtworkDestinations" }
+        updatedAt: { type: string, format: date-time }
+    StudioArtworkPhotoInput:
+      type: object
+      required: [name, objectPath]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 240 }
+        objectPath: { type: string, pattern: "^/objects/[A-Za-z0-9/_-]+$" }
+    StudioArtworkInput:
+      type: object
+      required: [title, medium, photos]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 240 }
+        year: { type: string, maxLength: 80 }
+        dimensions: { type: string, maxLength: 120 }
+        medium: { type: string, minLength: 1, maxLength: 180 }
+        price: { type: string, maxLength: 80 }
+        availability: { type: string, enum: [Available, Reserved, Sold, "Not for sale"] }
+        notes: { type: string, maxLength: 5000 }
+        seoTitle: { type: string, maxLength: 240 }
+        seoDescription: { type: string, maxLength: 500 }
+        seoKeywords:
+          type: array
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 120 }
+        photos:
+          type: array
+          minItems: 1
+          maxItems: 12
+          items: { $ref: "#/components/schemas/StudioArtworkPhotoInput" }
+    StudioArtworkPinterestStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [queued, publishing, published, failed] }
+        pinterestPinId: { type: ["string", "null"] }
+    StudioArtworkPinterestRecord:
+      type: object
+      required: [artworkId, title, status, pinterestPinId, attempts, lastError, publishedAt, updatedAt]
+      properties:
+        artworkId: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [queued, publishing, published, failed] }
+        pinterestPinId: { type: ["string", "null"] }
+        attempts: { type: integer }
+        lastError: { type: ["string", "null"] }
+        publishedAt: { type: ["string", "null"], format: date-time }
+        updatedAt: { type: string, format: date-time }
+    StudioArtworkCreateResponse:
+      type: object
+      required: [artwork, pinterest]
+      properties:
+        artwork: { $ref: "#/components/schemas/StudioArtwork" }
+        pinterest:
+          type: object
+          required: [status, message]
+          properties:
+            status: { type: string }
+            message: { type: string }
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required: [ok]
+
+    FundPartnerBriefInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        business:
+          type: string
+          minLength: 1
+        product:
+          type: string
+          minLength: 1
+        locations:
+          type: string
+          minLength: 1
+        contributionAmount:
+          type: string
+          minLength: 1
+        desiredCreativeWork:
+          type: string
+          minLength: 1
+          maxLength: 2500
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        artistBooking:
+          type: boolean
+        production:
+          type: boolean
+        notes:
+          type: string
+        company:
+          type: string
+          maxLength: 0
+      required: [name, email, business, product, locations, contributionAmount, desiredCreativeWork, startDate, endDate, artistBooking, production]
+
+    GuadalajaraResidencyApplicationInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        applyingAs:
+          type: string
+          enum: [solo, duo]
+        duoApplicant:
+          $ref: "#/components/schemas/GuadalajaraDuoApplicantInput"
+        portfolioUrl:
+          type: string
+          format: uri
+          maxLength: 300
+        roomOption:
+          type: string
+          enum: [shared_room, private_room]
+        artistPractice:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        residencyProject:
+          type: string
+          minLength: 10
+          maxLength: 2500
+        localCollaboration:
+          type: string
+          minLength: 10
+          maxLength: 2500
+        sharedLiving:
+          type: string
+          minLength: 10
+          maxLength: 1800
+        sharedLivingExperience:
+          type: string
+          minLength: 3
+          maxLength: 800
+        availabilityCommitments:
+          type: string
+          maxLength: 1500
+        heardAbout:
+          type: string
+          maxLength: 500
+        roomSetup:
+          type: string
+          enum: [king_bed, two_double_beds]
+        spanish:
+          type: string
+          maxLength: 80
+        privacyConsent:
+          type: boolean
+        cityConditionsAcknowledged:
+          type: boolean
+        programParticipationAcknowledged:
+          type: boolean
+        networkSignupAcknowledged:
+          type: boolean
+        honeypot:
+          type: string
+          maxLength: 0
+      required:
+        - name
+        - email
+        - applyingAs
+        - roomOption
+        - artistPractice
+        - residencyProject
+        - localCollaboration
+        - sharedLiving
+        - sharedLivingExperience
+        - roomSetup
+        - privacyConsent
+        - cityConditionsAcknowledged
+        - programParticipationAcknowledged
+        - networkSignupAcknowledged
+
+    GuadalajaraDuoApplicantInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        portfolioUrl:
+          type: string
+          format: uri
+          maxLength: 300
+        artistPractice:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        privacyConsent:
+          type: boolean
+        cityConditionsAcknowledged:
+          type: boolean
+        programParticipationAcknowledged:
+          type: boolean
+        networkSignupAcknowledged:
+          type: boolean
+      required:
+        - name
+        - email
+        - artistPractice
+        - privacyConsent
+        - cityConditionsAcknowledged
+        - programParticipationAcknowledged
+        - networkSignupAcknowledged
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Original file name.
+        size:
+          type: integer
+          minimum: 1
+          description: File size in bytes.
+        contentType:
+          type: string
+          minLength: 1
+          description: MIME type of the file (e.g. `image/jpeg`).
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+          format: uri
+          description: Presigned GCS URL for PUT upload.
+        objectPath:
+          type: string
+          description: Normalized object path (e.g. `/objects/uploads/uuid`). Store this in your database.
+        metadata:
+          $ref: '#/components/schemas/UploadUrlRequest'

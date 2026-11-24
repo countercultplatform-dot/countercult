@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420">
+  <rect width="640" height="420" fill="#f1eee4"/>
+  <path d="M220 180h200v140H220z" fill="none" stroke="#151515" stroke-width="4"/>
+  <path d="m220 180 100 78 100-78" fill="none" stroke="#151515" stroke-width="4"/>
+  <text x="320" y="370" fill="#151515" font-family="Arial,sans-serif" font-size="18" text-anchor="middle">Media not included in source release</text>
+</svg>

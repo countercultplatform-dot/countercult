@@ -1,0 +1,17 @@
+{
+  "name": "countercult-platform-source",
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.26.1",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "typecheck:libs": "tsc --build lib/db lib/api-zod lib/profile-choices lib/api-client-react lib/object-storage-web",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "validate": "pnpm run typecheck && pnpm run test && pnpm run build"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2"
+  }
+}

@@ -1,0 +1,69 @@
+.cc-fund-talent-ticker {
+  overflow: hidden;
+  border-top: 2px solid #000;
+  border-bottom: 2px solid #000;
+  background: #c6ff3d;
+  color: #000;
+}
+
+.cc-fund-talent-ticker__mask {
+  overflow: hidden;
+}
+
+.cc-fund-talent-ticker__track {
+  display: flex;
+  width: max-content;
+  animation: cc-fund-talent-ticker-scroll 72s linear infinite;
+}
+
+.cc-fund-talent-ticker__group {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1.75rem;
+  padding: 1.1rem 1.75rem;
+  white-space: nowrap;
+}
+
+.cc-fund-talent-ticker__item {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.cc-fund-talent-ticker__item::after {
+  content: "/";
+  margin-left: 1.75rem;
+  font-size: 0.9rem;
+}
+
+.cc-fund-talent-ticker__item--lead {
+  font-size: clamp(1rem, 2.1vw, 1.5rem);
+  letter-spacing: -0.04em;
+}
+
+@keyframes cc-fund-talent-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.cc-fund-talent-ticker:hover .cc-fund-talent-ticker__track,
+.cc-fund-talent-ticker:focus-within .cc-fund-talent-ticker__track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-fund-talent-ticker__track {
+    animation: none;
+  }
+
+  .cc-fund-talent-ticker__mask {
+    overflow-x: auto;
+  }
+}

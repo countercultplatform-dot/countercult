@@ -1,0 +1,158 @@
+{
+  "path": "how-to-find-local-artists-berlin",
+  "title": "How to Find and Commission Local Artists in Berlin | Countercult",
+  "description": "A practical guide for Berlin agencies, brands, and cultural teams to find artists through public profiles, local context, direct conversation, consent, and paid terms.",
+  "heading": "How to find local artists in Berlin",
+  "intro": [
+    {
+      "text": "If you are searching for local artists in Berlin, the first useful question is not who is most visible online. It is what the project needs, who should be involved, and whether the artist wants the work. This guide is for agencies, brands, and cultural teams that want to find and commission artists without turning the city into a contact list."
+    }
+  ],
+  "sections": [
+    {
+      "heading": "1. Write the brief before searching",
+      "paragraphs": [
+        [
+          {
+            "text": "Set out the purpose, audience, place, dates, decision-maker, and budget before approaching artists. Separate the artist fee from travel, materials, access, production, and usage costs. For a Berlin brief, name the district or venue, audience, working language, dates, and production or access needs. Berlin alone is not a brief."
+          }
+        ]
+      ]
+    },
+    {
+      "heading": "2. Search public, consent-based sources",
+      "paragraphs": [
+        [
+          {
+            "text": "Start with artists’ own websites, public portfolios, artist-run spaces, exhibitions, open studios, neighbourhood programmes, and independent publishers. Countercult’s public Network includes artists and cultural workers who chose to publish a profile. Browse by city, practice, and tag in the "
+          },
+          {
+            "text": "artist network",
+            "href": "/browse/artist"
+          },
+          {
+            "text": ". A public profile is an invitation to learn about the work, not automatic permission to use images or assume availability."
+          }
+        ]
+      ]
+    },
+    {
+      "heading": "3. Look beyond the familiar roster",
+      "paragraphs": [
+        [
+          {
+            "text": "Some of the most relevant creative talent will not appear in a standard agency list. Read the artist’s work and local context, then ask whether the person is open to the specific project. Do not treat search visibility, social reach, or a city tag as proof of fit."
+          }
+        ]
+      ]
+    },
+    {
+      "heading": "4. Make the terms clear",
+      "paragraphs": [
+        [
+          {
+            "text": "State the fee, scope, timeline, expenses, production support, credit, rights, and payment schedule in writing. Pay for the work and for any agreed use of it. Exposure is not a substitute for a fee, and a commission should not quietly expand beyond its original scope."
+          }
+        ]
+      ]
+    },
+    {
+      "heading": "5. Keep the relationship direct",
+      "paragraphs": [
+        [
+          {
+            "text": "Give the artist a real choice about whether to participate and how the work is described. Agree how the finished project can be documented, credited, and shared. Ask for a referral only if the artist is comfortable making one."
+          }
+        ]
+      ]
+    },
+    {
+      "heading": "Berlin's cultural economy is substantial",
+      "paragraphs": [
+        [
+          {
+            "text": "The Berlin Senate's cultural policy overview cites more than 160,000 employees in the city's cultural and creative economy. This is a sector-wide figure, not a count of artists available for commission. It shows the scale of the wider ecosystem and why a careful, brief-led search is more useful than treating Berlin as one talent list. "
+          },
+          {
+            "text": "Read the Berlin Senate source",
+            "href": "https://www.berlin.de/sen/kultur/en/cultural-policy"
+          },
+          {
+            "text": "."
+          }
+        ]
+      ]
+    },
+    {
+      "heading": "Where to start in Berlin",
+      "paragraphs": [
+        [
+          {
+            "text": "Use the "
+          },
+          {
+            "text": "Countercult public culture network",
+            "href": "/explore"
+          },
+          {
+            "text": " to find public artist and space profiles, then read the Berlin context before making contact. For campaign teams, the "
+          },
+          {
+            "text": "local cultural operator guide",
+            "href": "/journal/find-local-cultural-operators-experiential-campaign/"
+          },
+          {
+            "text": " gives a deeper selection framework. Countercult Studios can support cultural research, curation, and production when the brief needs more than a list of names."
+          },
+          {
+            "text": " Countercult is also building a media publication through stories, features, curation, and documented case studies. Agency teams can "
+          },
+          {
+            "text": "bring a project brief",
+            "href": "/studios/brief?route=business#brief"
+          },
+          {
+            "text": ", while artists, spaces, festivals, and cultural operators can "
+          },
+          {
+            "text": "apply for a free curated Network profile",
+            "href": "/explore?action=join&intent=network"
+          },
+          {
+            "text": "."
+          }
+        ]
+      ]
+    }
+  ],
+  "links": [
+    {
+      "href": "/browse/artist",
+      "label": "Browse public artist and cultural worker profiles"
+    },
+    {
+      "href": "/berlin-culture",
+      "label": "Understand Berlin's cultural network"
+    },
+    {
+      "href": "/journal/find-local-cultural-operators-experiential-campaign/",
+      "label": "Read the agency guide to finding local cultural operators"
+    },
+    {
+      "href": "/journal/brief-local-cultural-operators/",
+      "label": "Read how to brief local cultural operators"
+    },
+    {
+      "href": "/studios",
+      "label": "Work with Countercult Studios"
+    },
+    {
+      "href": "/studios/brief?route=business#brief",
+      "label": "Bring an agency or cultural production brief"
+    },
+    {
+      "href": "/explore?action=join&intent=network",
+      "label": "Apply for a free curated Network profile"
+    }
+  ]
+}

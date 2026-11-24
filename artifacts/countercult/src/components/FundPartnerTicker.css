@@ -1,0 +1,98 @@
+.cc-fund-partners {
+  overflow: hidden;
+  border-bottom: 2px solid #000;
+  background: #c6ff3d;
+  color: #000;
+}
+
+.cc-fund-partners__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgb(0 0 0 / 20%);
+  padding: 0.8rem clamp(1rem, 5vw, 3.5rem);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.cc-fund-partners__label a {
+  color: #000;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cc-fund-partners__mask {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 6%, #000 94%, transparent 100%);
+}
+
+.cc-fund-partners__track {
+  display: flex;
+  width: max-content;
+  animation: cc-fund-partners-scroll 160s linear infinite;
+}
+
+.cc-fund-partners__group {
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-around;
+  gap: clamp(1.5rem, 5vw, 4.5rem);
+  min-width: 100vw;
+  padding: 1.25rem clamp(1rem, 5vw, 3.5rem);
+  width: max-content;
+  white-space: nowrap;
+}
+
+.cc-fund-partners__item {
+  font-size: clamp(1.15rem, 2.1vw, 1.65rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.cc-fund-partners__item::after {
+  color: #000;
+  content: "/";
+  margin-left: clamp(1.25rem, 3vw, 2.25rem);
+}
+
+@keyframes cc-fund-partners-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.cc-fund-partners:hover .cc-fund-partners__track,
+.cc-fund-partners:focus-within .cc-fund-partners__track {
+  animation-play-state: paused;
+}
+
+@media (max-width: 640px) {
+  .cc-fund-partners__track {
+    animation-duration: 138s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-fund-partners__track {
+    animation: none;
+  }
+
+  .cc-fund-partners__mask {
+    overflow-x: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
