@@ -67,8 +67,16 @@ export default function About() {
            <div id="open-source" className="mt-6 scroll-mt-6 border-l-2 border-[#c6ff3d] bg-[#c6ff3d]/[0.06] px-4 py-3">
             <p className="text-[9px] uppercase tracking-[0.22em] text-[#c6ff3d]">open cultural infrastructure</p>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/65">
-               “open source” means Countercult’s core software is released under the AGPL-3.0-or-later licence so it can be inspected, reused, and improved. It does not mean member data, private Exchange details, cultural boundaries, or Countercult’s brand assets are public.
+                Countercult’s core software is released under the AGPL-3.0-or-later licence, so developers can inspect, reuse, and improve it. Artists retain rights to their work, and members keep control over how their information is shared.
             </p>
+             <a
+               href="https://github.com/countercultplatform-dot/countercult"
+               target="_blank"
+               rel="noopener noreferrer"
+               className="mt-3 inline-block text-[10px] font-bold uppercase tracking-widest text-[#c6ff3d] underline decoration-1 underline-offset-4 hover:text-white"
+             >
+               view the Countercult source on GitHub →
+             </a>
           </div>
            <div className="mt-4 border-l-2 border-white/25 px-4 py-3">
              <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">public thesis / guarded operations</p>
