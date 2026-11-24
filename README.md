@@ -15,6 +15,8 @@ The software is licensed under **GNU Affero General Public License v3.0 or later
 
 This is a software source release, not a copy of Countercult's production environment. It does not include member or applicant records, private Exchange content, production databases, contact research, private partner material, or the workspace's previous Git history.
 
+The separate Countercult Expo mobile client is not included in this release.
+
 Published photographs, artwork, logos, publication archives, and other media are not licensed by the software license. Media imports in this source release point to a neutral placeholder. Replace them only with assets you have permission to use. A small amount of public page copy is included to keep the web app's content structure intact; that copy remains separately copyrighted. See [`ASSET-NOTICES.md`](ASSET-NOTICES.md).
 
 ## Development
